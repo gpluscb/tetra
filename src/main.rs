@@ -10,15 +10,14 @@ use crate::framework::ExecutableCommandService;
 use crate::util::state_service::StateLayer;
 use std::future::Future;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror::Error;
 use tokio_stream::{Stream, StreamExt as _, StreamMap};
 use tower::{Layer, Service, ServiceExt};
 use twilight_gateway::error::ReceiveMessageError;
 use twilight_gateway::{Config, EventTypeFlags, Message, StreamExt as _, create_recommended};
 use twilight_http::Client;
-use twilight_http::client::InteractionClient;
 use twilight_http::response::DeserializeBodyError;
-use twilight_model::application::command::Command;
 use twilight_model::application::interaction::Interaction;
 use twilight_model::gateway::Intents;
 use twilight_model::gateway::event::Event;
@@ -42,6 +41,7 @@ async fn handle_events(
     > + Clone
     + Send
     + 'static,
+    state: &State,
     mut events: impl Stream<Item = Result<Message, ReceiveMessageError>> + Unpin,
 ) -> Result<(), TwilightError> {
     async fn assert_fully_processed(it: impl Future<Output = Result<(), ()>>) {
@@ -51,6 +51,11 @@ async fn handle_events(
     while let Some(item) = events.next_event(EventTypeFlags::INTERACTION_CREATE).await {
         let interaction = match item {
             Ok(Event::InteractionCreate(interaction_create)) => interaction_create.0,
+            Ok(Event::GatewayClose(_)) if state.shutdown.load(Ordering::Acquire) => {
+                // TODO: Some kind of timeout for shutdown
+                println!("SHUTDOWNNNNN; Gateway Closed");
+                break;
+            }
             Err(e) => {
                 println!("AWAWAWA RECEIVE MESSAGE ERROR {e}");
                 continue;
@@ -64,13 +69,6 @@ async fn handle_events(
         }));
     }
 
-    Ok(())
-}
-
-async fn update_commands(client: &InteractionClient<'_>) -> Result<(), twilight_http::Error> {
-    let commands = Commands::create_commands().map(Command::from);
-
-    client.set_global_commands(&commands).await?;
     Ok(())
 }
 
@@ -99,17 +97,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let config = Config::new(token, Intents::empty());
     let shards = create_recommended(&client, config, |_, builder| builder.build()).await?;
-    let shard_stream: StreamMap<_, _> = shards.map(|shard| (shard.id(), shard)).collect();
+    let (senders, shards): (_, Vec<_>) = shards.map(|shard| (shard.sender(), shard)).unzip();
+    let shard_stream: StreamMap<_, _> = shards
+        .into_iter()
+        .map(|shard| (shard.id(), shard))
+        .collect();
 
     let state = State {
         client: client.clone(),
         app_id,
+        shutdown: Arc::new(AtomicBool::new(false)),
+        senders,
     };
 
     let interaction = client.interaction(app_id);
-    update_commands(&interaction).await?;
-    let router = get_command_router(state);
-    handle_events(router, shard_stream.map(|(_, shard)| shard))
+    Commands::update_commands(&interaction).await?;
+    let router = get_command_router(state.clone());
+    handle_events(router, &state, shard_stream.map(|(_, shard)| shard))
         .await
         .unwrap();
 

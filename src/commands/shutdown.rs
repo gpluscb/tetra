@@ -1,26 +1,51 @@
-use super::{CommandHandler, State};
 use crate::TwilightError;
+use crate::commands::State;
+use crate::framework::CommandHandler;
+use std::sync::atomic::Ordering;
+use thiserror::Error;
+use twilight_gateway::error::ChannelError;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::application::interaction::Interaction;
+use twilight_model::gateway::CloseFrame;
 use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};
 use twilight_util::builder::InteractionResponseDataBuilder;
 
 #[derive(CreateCommand, CommandModel)]
-#[command(name = "test-command", desc = "Just a test command tbh tbh.")]
+#[command(name = "shutdown", desc = "Shut down the bot.")]
 pub struct Command;
 
-pub type Error = TwilightError;
+#[derive(Debug, Error)]
+pub enum Error {
+    // TODO: Prettier print this
+    #[error("One or more channel errors occurred, shutdown might be incomplete: {0:?}")]
+    Channel(Vec<ChannelError>),
+    #[error("Error replying to interaction: {0}")]
+    Reply(#[from] TwilightError),
+}
 
 impl CommandHandler for Command {
     type State = State;
     type Response = ();
-    type Error = TwilightError;
+    type Error = Error;
 
     async fn handle(
         self,
         state: Self::State,
         interaction: Interaction,
     ) -> Result<Self::Response, Self::Error> {
+        state.shutdown.store(true, Ordering::Release);
+
+        let close_errors: Vec<_> = state
+            .senders
+            .iter()
+            .map(|sender| sender.close(CloseFrame::NORMAL))
+            .filter_map(Result::err)
+            .collect();
+
+        if !close_errors.is_empty() {
+            return Err(Error::Channel(close_errors));
+        }
+
         state
             .client
             .interaction(state.app_id)
@@ -31,12 +56,14 @@ impl CommandHandler for Command {
                     kind: InteractionResponseType::ChannelMessageWithSource,
                     data: Some(
                         InteractionResponseDataBuilder::new()
-                            .content("HIIIII OMG HAII UWU UWU")
+                            .content("Shutdown initiated.")
                             .build(),
                     ),
                 },
             )
-            .await?;
+            .await
+            .map_err(TwilightError::from)?;
+
         Ok(())
     }
 }

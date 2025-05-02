@@ -7,15 +7,17 @@ use twilight_util::builder::InteractionResponseDataBuilder;
 
 #[derive(CreateCommand, CommandModel)]
 #[command(name = "test-command-2", desc = "Just a test command tbh tbh.")]
-pub struct CommandB {
+pub struct Command {
     /// The message to send
     message: String,
 }
 
-impl CommandHandler for CommandB {
+pub type Error = TwilightError;
+
+impl CommandHandler for Command {
     type State = State;
     type Response = ();
-    type Error = TwilightError;
+    type Error = Error;
 
     async fn handle(
         self,
