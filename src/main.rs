@@ -3,17 +3,15 @@
 
 mod commands;
 mod framework;
-mod util;
 
 use crate::commands::Commands;
 use crate::framework::ExecutableCommandService;
-use crate::util::state_service::StateLayer;
 use std::future::Future;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror::Error;
 use tokio_stream::{Stream, StreamExt as _, StreamMap};
-use tower::{Layer, Service, ServiceExt};
+use tower::{Service, ServiceExt};
 use twilight_gateway::error::ReceiveMessageError;
 use twilight_gateway::{
     Config, EventTypeFlags, Message, MessageSender, StreamExt as _, create_recommended,
@@ -44,14 +42,14 @@ pub enum TwilightError {
 
 async fn handle_events(
     router: impl Service<
-        Interaction,
+        (Arc<State>, Interaction),
         Response = (),
         Error = (),
         Future = impl Future<Output = Result<(), ()>> + Send,
     > + Clone
     + Send
     + 'static,
-    state: &State,
+    state: Arc<State>,
     mut events: impl Stream<Item = Result<Message, ReceiveMessageError>> + Unpin,
 ) -> Result<(), TwilightError> {
     async fn assert_fully_processed(it: impl Future<Output = Result<(), ()>>) {
@@ -74,28 +72,25 @@ async fn handle_events(
         };
 
         let mut router = router.clone();
+        let state = state.clone();
         tokio::spawn(assert_fully_processed(async move {
-            router.ready().await?.call(interaction).await
+            router.ready().await?.call((state, interaction)).await
         }));
     }
 
     Ok(())
 }
 
-fn get_command_router(
-    state: Arc<State>,
-) -> impl Service<
-    Interaction,
+fn get_command_router() -> impl Service<
+    (Arc<State>, Interaction),
     Response = (),
     Error = (),
     Future = impl Future<Output = Result<(), ()>> + Send,
 > + Clone
 + Send
 + 'static {
-    let service = ExecutableCommandService::<Commands>::new()
-        .map_err(|err| println!("AWAWAWA THERE WAS AN ERROR :( {err}"));
-
-    StateLayer::new(state).layer(service)
+    ExecutableCommandService::<Commands>::new()
+        .map_err(|err| println!("AWAWAWA THERE WAS AN ERROR :( {err}"))
 }
 
 #[tokio::main]
@@ -126,6 +121,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     handle_events(router, &state, shard_stream.map(|(_, shard)| shard))
         .await
         .unwrap();
+
+    handle_events(
+        get_command_router(),
+        state,
+        shard_stream.map(|(_, shard)| shard),
+    )
+    .await
+    .unwrap();
 
     Ok(())
 }
