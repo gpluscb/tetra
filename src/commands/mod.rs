@@ -82,7 +82,7 @@ impl Commands {
         ]
     }
 
-    fn admin_commands() -> [Command; 1] {
+    fn admin_guild_commands() -> [Command; 1] {
         [shutdown::Command::create_command().into()]
     }
 
@@ -93,8 +93,7 @@ impl Commands {
         let global_commands = Self::global_commands();
         client.set_global_commands(&global_commands).await?;
 
-        let admin_commands = Self::admin_commands();
-        // TODO: .env
+        let admin_commands = Self::admin_guild_commands();
         client
             .set_guild_commands(admin_guild_id, &admin_commands)
             .await?;
