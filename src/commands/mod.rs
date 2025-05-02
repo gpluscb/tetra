@@ -1,5 +1,5 @@
 use crate::TwilightError;
-use crate::framework::{FromCommandData, FromCommandDataError, HandleableCommand};
+use crate::framework::{CommandHandler, FromCommandData, FromCommandDataError};
 use command_a::CommandA;
 use command_b::CommandB;
 use std::sync::Arc;
@@ -34,7 +34,7 @@ impl FromCommandData for Commands {
     }
 }
 
-impl HandleableCommand for Commands {
+impl CommandHandler for Commands {
     type State = State;
     type Response = ();
     type Error = TwilightError;

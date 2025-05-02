@@ -1,4 +1,4 @@
-use super::{HandleableCommand, State};
+use super::{CommandHandler, State};
 use crate::TwilightError;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::application::interaction::Interaction;
@@ -9,7 +9,7 @@ use twilight_util::builder::InteractionResponseDataBuilder;
 #[command(name = "test-command", desc = "Just a test command tbh tbh.")]
 pub struct CommandA;
 
-impl HandleableCommand for CommandA {
+impl CommandHandler for CommandA {
     type State = State;
     type Response = ();
     type Error = TwilightError;

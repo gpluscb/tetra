@@ -45,7 +45,7 @@ impl<TCommand> CommandService<TCommand> {
 
 impl<TCommand, TState> Service<(TCommand, TState, Interaction)> for CommandService<TCommand>
 where
-    TCommand: HandleableCommand<State = TState>,
+    TCommand: CommandHandler<State = TState>,
 {
     type Response = TCommand::Response;
     type Error = TCommand::Error;
@@ -74,7 +74,7 @@ impl<TCommand> ExecutableCommandService<TCommand> {
 
 impl<TCommand, TState> Service<(TState, Interaction)> for ExecutableCommandService<TCommand>
 where
-    TCommand: ExecutableCommand<State = TState>,
+    TCommand: CommandRunner<State = TState>,
 {
     type Response = TCommand::Response;
     type Error = Error<TCommand::CommandError>;
@@ -102,7 +102,7 @@ where
     }
 }
 
-pub trait HandleableCommand {
+pub trait CommandHandler {
     type State;
     type Response;
     type Error;
@@ -114,7 +114,7 @@ pub trait HandleableCommand {
     ) -> impl Future<Output = Result<Self::Response, Self::Error>> + Send + 'static;
 }
 
-pub trait ExecutableCommand {
+pub trait CommandRunner {
     type State;
     type Response;
     type CommandError;
@@ -125,15 +125,15 @@ pub trait ExecutableCommand {
     ) -> impl Future<Output = Result<Self::Response, Error<Self::CommandError>>> + Send + 'static;
 }
 
-impl<TCommand> ExecutableCommand for TCommand
+impl<TCommand> CommandRunner for TCommand
 where
-    TCommand: HandleableCommand + FromCommandData,
+    TCommand: CommandHandler + FromCommandData,
     TCommand: Sized + 'static,
     TCommand::State: Send,
 {
     type State = TCommand::State;
     type Response = TCommand::Response;
-    type CommandError = <TCommand as HandleableCommand>::Error;
+    type CommandError = <TCommand as CommandHandler>::Error;
 
     async fn run(
         state: Self::State,
