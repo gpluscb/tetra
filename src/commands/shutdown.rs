@@ -1,5 +1,6 @@
 use crate::framework::CommandHandler;
 use crate::{State, TwilightError};
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use thiserror::Error;
 use twilight_gateway::error::ChannelError;
@@ -23,7 +24,7 @@ pub enum Error {
 }
 
 impl CommandHandler for Command {
-    type State = State;
+    type State = Arc<State>;
     type Response = ();
     type Error = Error;
 

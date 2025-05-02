@@ -26,12 +26,12 @@ use twilight_model::gateway::event::Event;
 use twilight_model::id::Id;
 use twilight_model::id::marker::ApplicationMarker;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct State {
-    pub client: Arc<Client>,
+    pub client: Client,
     pub senders: Vec<MessageSender>,
     pub app_id: Id<ApplicationMarker>,
-    pub shutdown: Arc<AtomicBool>,
+    pub shutdown: AtomicBool,
 }
 
 #[derive(Debug, Error)]
@@ -83,7 +83,7 @@ async fn handle_events(
 }
 
 fn get_command_router(
-    state: State,
+    state: Arc<State>,
 ) -> impl Service<
     Interaction,
     Response = (),
@@ -103,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     _ = dotenv::dotenv();
     let token = std::env::var("DISCORD_TOKEN")?;
     let app_id: Id<ApplicationMarker> = std::env::var("APPLICATION_ID")?.parse()?;
-    let client = Arc::new(Client::new(token.clone()));
+    let client = Client::new(token.clone());
 
     let config = Config::new(token, Intents::empty());
     let shards = create_recommended(&client, config, |_, builder| builder.build()).await?;
@@ -113,15 +113,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .map(|shard| (shard.id(), shard))
         .collect();
 
-    let state = State {
-        client: client.clone(),
-        app_id,
-        shutdown: Arc::new(AtomicBool::new(false)),
-        senders,
-    };
-
     let interaction = client.interaction(app_id);
     Commands::update_commands(&interaction).await?;
+
+    let state = Arc::new(State {
+        client,
+        app_id,
+        shutdown: AtomicBool::new(false),
+        senders,
+    });
     let router = get_command_router(state.clone());
     handle_events(router, &state, shard_stream.map(|(_, shard)| shard))
         .await

@@ -1,5 +1,6 @@
 use crate::State;
 use crate::framework::{CommandHandler, FromCommandData, FromCommandDataError};
+use std::sync::Arc;
 use thiserror::Error;
 use twilight_http::client::InteractionClient;
 use twilight_interactions::command::{CommandModel, CreateCommand};
@@ -46,7 +47,7 @@ impl FromCommandData for Commands {
 }
 
 impl CommandHandler for Commands {
-    type State = State;
+    type State = Arc<State>;
     type Response = ();
     type Error = CommandError;
 

@@ -1,5 +1,6 @@
 use super::CommandHandler;
 use crate::{State, TwilightError};
+use std::sync::Arc;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::application::interaction::Interaction;
 use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};
@@ -12,7 +13,7 @@ pub struct Command;
 pub type Error = TwilightError;
 
 impl CommandHandler for Command {
-    type State = State;
+    type State = Arc<State>;
     type Response = ();
     type Error = TwilightError;
 
