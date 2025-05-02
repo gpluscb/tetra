@@ -1,28 +1,16 @@
+use crate::State;
 use crate::framework::{CommandHandler, FromCommandData, FromCommandDataError};
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use thiserror::Error;
-use twilight_gateway::MessageSender;
-use twilight_http::Client;
 use twilight_http::client::InteractionClient;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::application::command::Command;
 use twilight_model::application::interaction::Interaction;
 use twilight_model::application::interaction::application_command::CommandData;
 use twilight_model::id::Id;
-use twilight_model::id::marker::ApplicationMarker;
 
 mod command_a;
 mod command_b;
 mod shutdown;
-
-#[derive(Clone, Debug)]
-pub struct State {
-    pub client: Arc<Client>,
-    pub senders: Vec<MessageSender>,
-    pub app_id: Id<ApplicationMarker>,
-    pub shutdown: Arc<AtomicBool>,
-}
 
 #[derive(Debug, Error)]
 pub enum CommandError {

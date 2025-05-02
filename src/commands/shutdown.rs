@@ -1,6 +1,5 @@
-use crate::TwilightError;
-use crate::commands::State;
 use crate::framework::CommandHandler;
+use crate::{State, TwilightError};
 use std::sync::atomic::Ordering;
 use thiserror::Error;
 use twilight_gateway::error::ChannelError;

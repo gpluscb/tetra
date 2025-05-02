@@ -1,5 +1,5 @@
-use super::{CommandHandler, State};
-use crate::TwilightError;
+use super::CommandHandler;
+use crate::{State, TwilightError};
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::application::interaction::Interaction;
 use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};

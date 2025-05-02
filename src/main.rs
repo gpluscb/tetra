@@ -5,7 +5,7 @@ mod commands;
 mod framework;
 mod util;
 
-use crate::commands::{Commands, State};
+use crate::commands::Commands;
 use crate::framework::ExecutableCommandService;
 use crate::util::state_service::StateLayer;
 use std::future::Future;
@@ -15,7 +15,9 @@ use thiserror::Error;
 use tokio_stream::{Stream, StreamExt as _, StreamMap};
 use tower::{Layer, Service, ServiceExt};
 use twilight_gateway::error::ReceiveMessageError;
-use twilight_gateway::{Config, EventTypeFlags, Message, StreamExt as _, create_recommended};
+use twilight_gateway::{
+    Config, EventTypeFlags, Message, MessageSender, StreamExt as _, create_recommended,
+};
 use twilight_http::Client;
 use twilight_http::response::DeserializeBodyError;
 use twilight_model::application::interaction::Interaction;
@@ -23,6 +25,14 @@ use twilight_model::gateway::Intents;
 use twilight_model::gateway::event::Event;
 use twilight_model::id::Id;
 use twilight_model::id::marker::ApplicationMarker;
+
+#[derive(Clone, Debug)]
+pub struct State {
+    pub client: Arc<Client>,
+    pub senders: Vec<MessageSender>,
+    pub app_id: Id<ApplicationMarker>,
+    pub shutdown: Arc<AtomicBool>,
+}
 
 #[derive(Debug, Error)]
 pub enum TwilightError {
