@@ -10,11 +10,9 @@ use std::future::Future;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror::Error;
-use tokio_stream::{Stream, StreamExt as _, StreamMap};
 use tower::{Service, ServiceExt};
-use twilight_gateway::error::ReceiveMessageError;
 use twilight_gateway::{
-    Config, EventTypeFlags, Message, MessageSender, StreamExt as _, create_recommended,
+    Config, EventTypeFlags, MessageSender, Shard, StreamExt as _, create_recommended,
 };
 use twilight_http::Client;
 use twilight_http::response::DeserializeBodyError;
@@ -40,7 +38,7 @@ pub enum TwilightError {
     Model(#[from] DeserializeBodyError),
 }
 
-async fn handle_events(
+async fn shard_runner(
     router: impl Service<
         (Arc<State>, Interaction),
         Response = (),
@@ -50,13 +48,13 @@ async fn handle_events(
     + Send
     + 'static,
     state: Arc<State>,
-    mut events: impl Stream<Item = Result<Message, ReceiveMessageError>> + Unpin,
+    mut shard: Shard,
 ) -> Result<(), TwilightError> {
     async fn assert_fully_processed(it: impl Future<Output = Result<(), ()>>) {
         _ = it.await;
     }
 
-    while let Some(item) = events.next_event(EventTypeFlags::INTERACTION_CREATE).await {
+    while let Some(item) = shard.next_event(EventTypeFlags::INTERACTION_CREATE).await {
         let interaction = match item {
             Ok(Event::InteractionCreate(interaction_create)) => interaction_create.0,
             Ok(Event::GatewayClose(_)) if state.shutdown.load(Ordering::Acquire) => {
@@ -101,34 +99,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let client = Client::new(token.clone());
 
     let config = Config::new(token, Intents::empty());
-    let shards = create_recommended(&client, config, |_, builder| builder.build()).await?;
-    let (senders, shards): (_, Vec<_>) = shards.map(|shard| (shard.sender(), shard)).unzip();
-    let shard_stream: StreamMap<_, _> = shards
-        .into_iter()
-        .map(|shard| (shard.id(), shard))
+    let shards: Vec<_> = create_recommended(&client, config, |_, builder| builder.build())
+        .await?
         .collect();
+    let senders = shards.iter().map(Shard::sender).collect();
 
     let interaction = client.interaction(app_id);
     Commands::update_commands(&interaction).await?;
 
+    let router = get_command_router();
     let state = Arc::new(State {
         client,
         app_id,
         shutdown: AtomicBool::new(false),
         senders,
     });
-    let router = get_command_router(state.clone());
-    handle_events(router, &state, shard_stream.map(|(_, shard)| shard))
-        .await
-        .unwrap();
+    let runners: Vec<_> = shards
+        .into_iter()
+        .map(|shard| {
+            let router = router.clone();
+            let state = state.clone();
+            tokio::spawn(shard_runner(router, state, shard))
+        })
+        .collect();
 
-    handle_events(
-        get_command_router(),
-        state,
-        shard_stream.map(|(_, shard)| shard),
-    )
-    .await
-    .unwrap();
+    for runner in runners {
+        // TODO: Allow other runners to do their thing even if singular runner failed
+        runner.await??;
+    }
 
     Ok(())
 }
