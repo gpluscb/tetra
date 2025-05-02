@@ -20,7 +20,7 @@ use twilight_model::application::interaction::Interaction;
 use twilight_model::gateway::Intents;
 use twilight_model::gateway::event::Event;
 use twilight_model::id::Id;
-use twilight_model::id::marker::ApplicationMarker;
+use twilight_model::id::marker::{ApplicationMarker, GuildMarker};
 
 #[derive(Debug)]
 pub struct State {
@@ -94,6 +94,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     _ = dotenv::dotenv();
     let token = std::env::var("DISCORD_TOKEN")?;
     let app_id: Id<ApplicationMarker> = std::env::var("APPLICATION_ID")?.parse()?;
+    let admin_guild_id: Id<GuildMarker> = std::env::var("ADMIN_GUILD_ID")?.parse()?;
+
     let client = Client::new(token.clone());
 
     let config = Config::new(token, Intents::empty());
@@ -103,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let senders = shards.iter().map(Shard::sender).collect();
 
     let interaction = client.interaction(app_id);
-    Commands::update_commands(&interaction).await?;
+    Commands::update_commands(&interaction, admin_guild_id).await?;
 
     let router = get_command_router();
     let state = Arc::new(State {

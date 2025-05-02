@@ -8,6 +8,7 @@ use twilight_model::application::command::Command;
 use twilight_model::application::interaction::Interaction;
 use twilight_model::application::interaction::application_command::CommandData;
 use twilight_model::id::Id;
+use twilight_model::id::marker::GuildMarker;
 
 mod command_a;
 mod command_b;
@@ -87,6 +88,7 @@ impl Commands {
 
     pub async fn update_commands(
         client: &InteractionClient<'_>,
+        admin_guild_id: Id<GuildMarker>,
     ) -> Result<(), twilight_http::Error> {
         let global_commands = Self::global_commands();
         client.set_global_commands(&global_commands).await?;
@@ -94,7 +96,7 @@ impl Commands {
         let admin_commands = Self::admin_commands();
         // TODO: .env
         client
-            .set_guild_commands(Id::new(152109320375369728), &admin_commands)
+            .set_guild_commands(admin_guild_id, &admin_commands)
             .await?;
         Ok(())
     }
