@@ -50,8 +50,8 @@ async fn shard_runner(
     state: Arc<State>,
     mut shard: Shard,
 ) {
-    async fn assert_fully_processed(it: impl Future<Output = Result<(), ()>>) {
-        _ = it.await;
+    fn assert_fully_processed<Fut: Future<Output = Result<(), ()>>>(it: Fut) -> Fut {
+        it
     }
 
     while let Some(item) = shard.next_event(EventTypeFlags::INTERACTION_CREATE).await {
