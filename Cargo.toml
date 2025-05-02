@@ -1,0 +1,18 @@
+[package]
+name = "tetra"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dotenv = "0.15.0"
+derive-where = "1.4.0"
+twilight-model = "0.16.0"
+twilight-http = "0.16.0"
+twilight-gateway = "0.16.0"
+twilight-interactions = "0.16.2"
+twilight-util = { version = "0.16.0", features = ["builder"] }
+tower = { version = "0.5.2", features = ["util"] }
+thiserror = "2.0.12"
+tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
+tokio-stream = "0.1.17"
+futures = "0.3.31"
