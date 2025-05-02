@@ -49,7 +49,7 @@ async fn shard_runner(
     + 'static,
     state: Arc<State>,
     mut shard: Shard,
-) -> Result<(), TwilightError> {
+) {
     async fn assert_fully_processed(it: impl Future<Output = Result<(), ()>>) {
         _ = it.await;
     }
@@ -75,8 +75,6 @@ async fn shard_runner(
             router.ready().await?.call((state, interaction)).await
         }));
     }
-
-    Ok(())
 }
 
 fn get_command_router() -> impl Service<
@@ -125,7 +123,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     for runner in runners {
         // TODO: Allow other runners to do their thing even if singular runner failed
-        runner.await??;
+        runner.await?;
     }
 
     Ok(())
