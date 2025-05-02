@@ -1,7 +1,8 @@
 use crate::State;
 use crate::framework::{CommandHandler, FromCommandData, FromCommandDataError};
+use std::error::Error;
+use std::fmt::{Display, Formatter};
 use std::sync::Arc;
-use thiserror::Error;
 use twilight_http::client::InteractionClient;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::application::command::Command;
@@ -14,63 +15,79 @@ mod command_a;
 mod command_b;
 mod shutdown;
 
-#[derive(Debug, Error)]
-pub enum CommandError {
-    #[error("command_a command error: {0}")]
-    A(command_a::Error),
-    #[error("command_b command error: {0}")]
-    B(command_b::Error),
-    #[error("shutdown command error: {0}")]
-    Shutdown(shutdown::Error),
-}
-
-pub enum Commands {
-    A(command_a::Command),
-    B(command_b::Command),
-    Shutdown(shutdown::Command),
-}
-
-impl FromCommandData for Commands {
-    fn from_command_data(data: Box<CommandData>) -> Result<Self, FromCommandDataError> {
-        match &*data.name {
-            command_a::Command::NAME => Ok(Commands::A(command_a::Command::from_interaction(
-                (*data).into(),
-            )?)),
-            command_b::Command::NAME => Ok(Commands::B(command_b::Command::from_interaction(
-                (*data).into(),
-            )?)),
-            shutdown::Command::NAME => Ok(Commands::Shutdown(shutdown::Command::from_interaction(
-                (*data).into(),
-            )?)),
-            _ => Err(FromCommandDataError::UnknownCommand(data)),
+macro_rules! commands_collection {
+    (Create collection $collection_name:ident
+    with error type $error_name:ident
+    with visibility $vis:vis
+    with state $state:ty;
+    from commands: {
+        $($command_name:ident
+        at $command_type:path;
+        with error type $command_error_type:path,)*
+    }) => {
+        #[derive(Debug)]
+        $vis enum $error_name {
+            $($command_name($command_error_type),
+            )*
         }
-    }
-}
 
-impl CommandHandler for Commands {
-    type State = Arc<State>;
-    type Response = ();
-    type Error = CommandError;
-
-    async fn handle(
-        self,
-        state: Self::State,
-        interaction: Interaction,
-    ) -> Result<Self::Response, Self::Error> {
-        match self {
-            Commands::A(command) => command
-                .handle(state, interaction)
-                .await
-                .map_err(CommandError::A),
-            Commands::B(command) => command
-                .handle(state, interaction)
-                .await
-                .map_err(CommandError::B),
-            Commands::Shutdown(command) => command
-                .handle(state, interaction)
-                .await
-                .map_err(CommandError::Shutdown),
+        impl Error for $error_name {}
+        impl Display for $error_name {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    $($error_name::$command_name(inner) => write!(f, "Command {} had error: {inner}", stringify!($command_name)),
+                    )*
+                }
+            }
         }
+
+        $vis enum $collection_name {
+            $($command_name($command_type),
+            )*
+        }
+
+        impl FromCommandData for $collection_name {
+            fn from_command_data(data: Box<CommandData>) -> Result<Self, FromCommandDataError> {
+                match &*data.name {
+                    $(<$command_type>::NAME => Ok($collection_name::$command_name(<$command_type>::from_interaction(
+                        (*data).into(),
+                    )?)),
+                    )*
+                    _ => Err(FromCommandDataError::UnknownCommand(data)),
+                }
+            }
+        }
+
+        impl CommandHandler for $collection_name {
+            type State = $state;
+            type Response = ();
+            type Error = $error_name;
+
+            async fn handle(
+                self,
+                state: Self::State,
+                interaction: Interaction,
+            ) -> Result<Self::Response, Self::Error> {
+                match self {
+                    $($collection_name::$command_name(command) => command
+                        .handle(state, interaction)
+                        .await
+                        .map_err($error_name::$command_name),
+                    )*
+                }
+            }
+        }
+    };
+}
+commands_collection! {
+    Create collection Commands
+    with error type CommandError
+    with visibility pub
+    with state Arc<State>;
+    from commands: {
+        A at command_a::Command; with error type command_a::Error,
+        B at command_b::Command; with error type command_b::Error,
+        Shutdown at shutdown::Command; with error type shutdown::Error,
     }
 }
 
