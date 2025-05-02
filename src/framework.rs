@@ -43,7 +43,7 @@ impl<TCommand> CommandService<TCommand> {
     }
 }
 
-impl<TCommand, TState> Service<(TCommand, Interaction, TState)> for CommandService<TCommand>
+impl<TCommand, TState> Service<(TCommand, TState, Interaction)> for CommandService<TCommand>
 where
     TCommand: HandleableCommand<State = TState>,
 {
@@ -57,7 +57,7 @@ where
 
     fn call(
         &mut self,
-        (command, interaction, state): (TCommand, Interaction, TState),
+        (command, state, interaction): (TCommand, TState, Interaction),
     ) -> Self::Future {
         Box::pin(command.handle(state, interaction))
     }
