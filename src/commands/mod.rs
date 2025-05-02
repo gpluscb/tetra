@@ -10,8 +10,8 @@ use twilight_model::application::interaction::application_command::CommandData;
 use twilight_model::id::Id;
 use twilight_model::id::marker::ApplicationMarker;
 
-pub mod command_a;
-pub mod command_b;
+mod command_a;
+mod command_b;
 
 #[derive(Clone, Debug)]
 pub struct State {
