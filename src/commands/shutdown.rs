@@ -1,12 +1,11 @@
 use crate::framework::CommandHandler;
+use crate::twilight_util::gateway::send_shutdown;
 use crate::{State, TwilightError};
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 use thiserror::Error;
 use twilight_gateway::error::ChannelError;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::application::interaction::Interaction;
-use twilight_model::gateway::CloseFrame;
 use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};
 use twilight_util::builder::InteractionResponseDataBuilder;
 
@@ -33,18 +32,7 @@ impl CommandHandler for Command {
         state: Self::State,
         interaction: Interaction,
     ) -> Result<Self::Response, Self::Error> {
-        state.shutdown.store(true, Ordering::Release);
-
-        let close_errors: Vec<_> = state
-            .senders
-            .iter()
-            .map(|sender| sender.close(CloseFrame::NORMAL))
-            .filter_map(Result::err)
-            .collect();
-
-        if !close_errors.is_empty() {
-            return Err(Error::Channel(close_errors));
-        }
+        send_shutdown(&state).map_err(Error::Channel)?;
 
         state
             .client

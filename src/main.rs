@@ -3,16 +3,19 @@
 
 mod commands;
 mod framework;
+mod twilight_util;
 
+use self::twilight_util::gateway;
 use crate::commands::Commands;
 use crate::framework::ExecutableCommandService;
 use std::future::Future;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror::Error;
+use tokio::signal;
 use tower::{Service, ServiceExt};
 use twilight_gateway::{
-    Config, EventTypeFlags, MessageSender, Shard, ShardState, StreamExt as _, create_recommended,
+    Config, EventTypeFlags, MessageSender, Shard, StreamExt as _, create_recommended,
 };
 use twilight_http::Client;
 use twilight_http::response::DeserializeBodyError;
@@ -89,6 +92,12 @@ fn get_command_router() -> impl Service<
         .map_err(|err| println!("AWAWAWA THERE WAS AN ERROR :( {err}"))
 }
 
+async fn ctrl_c_handler(state: &State) {
+    // TODO: Log these errors
+    _ = signal::ctrl_c().await;
+    _ = gateway::send_shutdown(state);
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     _ = dotenv::dotenv();
@@ -102,7 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let shards: Vec<_> = create_recommended(&client, config, |_, builder| builder.build())
         .await?
         .collect();
-    let senders = shards.iter().map(Shard::sender).collect();
+    let senders: Vec<_> = shards.iter().map(Shard::sender).collect();
 
     let interaction = client.interaction(app_id);
     Commands::update_commands(&interaction, admin_guild_id).await?;
@@ -110,7 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let router = get_command_router();
     let state = Arc::new(State {
         client,
-        senders,
+        senders: senders.clone(),
         app_id,
         shutdown: AtomicBool::new(false),
     });
@@ -122,6 +131,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             tokio::spawn(shard_runner(router, state, shard))
         })
         .collect();
+
+    tokio::spawn(async move {
+        ctrl_c_handler(&state).await;
+    });
 
     for runner in runners {
         // TODO: Allow other runners to do their thing even if singular runner failed
