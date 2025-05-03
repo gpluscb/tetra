@@ -43,7 +43,7 @@ impl<TCommand> CommandService<TCommand> {
     }
 }
 
-impl<TCommand, TContext> Service<(TCommand, TContext, Interaction)> for CommandService<TCommand>
+impl<TCommand, TContext> Service<(TCommand, TContext)> for CommandService<TCommand>
 where
     TCommand: CommandHandler<Context = TContext>,
 {
@@ -55,11 +55,8 @@ where
         Poll::Ready(Ok(()))
     }
 
-    fn call(
-        &mut self,
-        (command, context, interaction): (TCommand, TContext, Interaction),
-    ) -> Self::Future {
-        Box::pin(command.handle(context, interaction))
+    fn call(&mut self, (command, context): (TCommand, TContext)) -> Self::Future {
+        Box::pin(command.handle(context))
     }
 }
 
@@ -72,9 +69,10 @@ impl<TCommand> ExecutableCommandService<TCommand> {
     }
 }
 
-impl<TCommand, TContext> Service<(TContext, Interaction)> for ExecutableCommandService<TCommand>
+impl<TCommand, TContextFactory> Service<(TContextFactory, Interaction)>
+    for ExecutableCommandService<TCommand>
 where
-    TCommand: CommandRunner<Context = TContext>,
+    TCommand: CommandRunner<TContextFactory>,
 {
     type Response = TCommand::Response;
     type Error = Error<TCommand::CommandError>;
@@ -84,8 +82,11 @@ where
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, (context, interaction): (TContext, Interaction)) -> Self::Future {
-        Box::pin(TCommand::run(context, interaction))
+    fn call(
+        &mut self,
+        (context_factory, interaction): (TContextFactory, Interaction),
+    ) -> Self::Future {
+        Box::pin(TCommand::run(context_factory, interaction))
     }
 }
 
@@ -110,33 +111,48 @@ pub trait CommandHandler {
     fn handle(
         self,
         context: Self::Context,
-        interaction: Interaction,
     ) -> impl Future<Output = Result<Self::Response, Self::Error>> + Send + 'static;
 }
 
-pub trait CommandRunner {
-    type Context;
+pub trait CommandRunner<ContextFactory> {
     type Response;
     type CommandError;
 
     fn run(
-        context: Self::Context,
+        context_factory: ContextFactory,
         interaction: Interaction,
     ) -> impl Future<Output = Result<Self::Response, Error<Self::CommandError>>> + Send + 'static;
 }
 
-impl<TCommand> CommandRunner for TCommand
+pub trait CommandContextFactory {
+    type CommandContext;
+
+    fn create_context(self, interaction: Interaction) -> Self::CommandContext;
+}
+
+impl<F, TCommandContext> CommandContextFactory for F
+where
+    F: FnOnce(Interaction) -> TCommandContext,
+{
+    type CommandContext = TCommandContext;
+
+    fn create_context(self, interaction: Interaction) -> Self::CommandContext {
+        self(interaction)
+    }
+}
+
+impl<TCommand, ContextFactory> CommandRunner<ContextFactory> for TCommand
 where
     TCommand: CommandHandler + FromCommandData,
     TCommand: Sized + 'static,
     TCommand::Context: Send,
+    ContextFactory: CommandContextFactory<CommandContext = TCommand::Context> + Send + 'static,
 {
-    type Context = TCommand::Context;
     type Response = TCommand::Response;
     type CommandError = <TCommand as CommandHandler>::Error;
 
     async fn run(
-        context: Self::Context,
+        context_factory: ContextFactory,
         mut interaction: Interaction,
     ) -> Result<Self::Response, Error<Self::CommandError>> {
         let command_data = match interaction.data.take() {
@@ -157,9 +173,7 @@ where
             }
         };
 
-        command
-            .handle(context, interaction)
-            .await
-            .map_err(Error::Command)
+        let context = context_factory.create_context(interaction);
+        command.handle(context).await.map_err(Error::Command)
     }
 }

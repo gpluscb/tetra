@@ -1,8 +1,10 @@
+use crate::framework::CommandContextFactory;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use twilight_gateway::MessageSender;
 use twilight_gateway::error::ChannelError;
 use twilight_http::Client;
+use twilight_model::application::interaction::Interaction;
 use twilight_model::gateway::CloseFrame;
 use twilight_model::id::Id;
 use twilight_model::id::marker::ApplicationMarker;
@@ -38,6 +40,29 @@ impl State {
 }
 
 #[derive(Clone, Debug)]
+pub struct ContextFactory {
+    pub state: Arc<State>,
+}
+
+impl ContextFactory {
+    pub fn new(state: Arc<State>) -> Self {
+        ContextFactory { state }
+    }
+}
+
+impl CommandContextFactory for ContextFactory {
+    type CommandContext = CommandContext;
+
+    fn create_context(self, interaction: Interaction) -> Self::CommandContext {
+        CommandContext {
+            state: self.state,
+            interaction,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct CommandContext {
     pub state: Arc<State>,
+    pub interaction: Interaction,
 }

@@ -4,7 +4,6 @@ use crate::framework::CommandHandler;
 use thiserror::Error;
 use twilight_gateway::error::ChannelError;
 use twilight_interactions::command::{CommandModel, CreateCommand};
-use twilight_model::application::interaction::Interaction;
 use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};
 use twilight_util::builder::InteractionResponseDataBuilder;
 
@@ -26,11 +25,7 @@ impl CommandHandler for Command {
     type Response = ();
     type Error = Error;
 
-    async fn handle(
-        self,
-        context: Self::Context,
-        interaction: Interaction,
-    ) -> Result<Self::Response, Self::Error> {
+    async fn handle(self, context: Self::Context) -> Result<Self::Response, Self::Error> {
         context.state.send_shutdown().map_err(Error::Channel)?;
 
         context
@@ -38,8 +33,8 @@ impl CommandHandler for Command {
             .client
             .interaction(context.state.app_id)
             .create_response(
-                interaction.id,
-                &interaction.token,
+                context.interaction.id,
+                &context.interaction.token,
                 &InteractionResponse {
                     kind: InteractionResponseType::ChannelMessageWithSource,
                     data: Some(

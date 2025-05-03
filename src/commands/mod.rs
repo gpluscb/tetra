@@ -5,7 +5,6 @@ use std::fmt::{Display, Formatter};
 use twilight_http::client::InteractionClient;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::application::command::Command;
-use twilight_model::application::interaction::Interaction;
 use twilight_model::application::interaction::application_command::CommandData;
 use twilight_model::id::Id;
 use twilight_model::id::marker::GuildMarker;
@@ -65,11 +64,10 @@ macro_rules! commands_collection {
             async fn handle(
                 self,
                 context: Self::Context,
-                interaction: Interaction,
             ) -> Result<Self::Response, Self::Error> {
                 match self {
                     $($collection_name::$command_name(command) => command
-                        .handle(context, interaction)
+                        .handle(context)
                         .await
                         .map_err($error_name::$command_name),
                     )*

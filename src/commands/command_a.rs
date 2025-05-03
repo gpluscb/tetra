@@ -2,7 +2,6 @@ use super::CommandHandler;
 use crate::TwilightError;
 use crate::context::CommandContext;
 use twilight_interactions::command::{CommandModel, CreateCommand};
-use twilight_model::application::interaction::Interaction;
 use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};
 use twilight_util::builder::InteractionResponseDataBuilder;
 
@@ -17,18 +16,14 @@ impl CommandHandler for Command {
     type Response = ();
     type Error = TwilightError;
 
-    async fn handle(
-        self,
-        context: Self::Context,
-        interaction: Interaction,
-    ) -> Result<Self::Response, Self::Error> {
+    async fn handle(self, context: Self::Context) -> Result<Self::Response, Self::Error> {
         context
             .state
             .client
             .interaction(context.state.app_id)
             .create_response(
-                interaction.id,
-                &interaction.token,
+                context.interaction.id,
+                &context.interaction.token,
                 &InteractionResponse {
                     kind: InteractionResponseType::ChannelMessageWithSource,
                     data: Some(
