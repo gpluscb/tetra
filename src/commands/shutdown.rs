@@ -1,7 +1,6 @@
+use crate::TwilightError;
+use crate::context::CommandContext;
 use crate::framework::CommandHandler;
-use crate::twilight_util::gateway::send_shutdown;
-use crate::{State, TwilightError};
-use std::sync::Arc;
 use thiserror::Error;
 use twilight_gateway::error::ChannelError;
 use twilight_interactions::command::{CommandModel, CreateCommand};
@@ -23,20 +22,21 @@ pub enum Error {
 }
 
 impl CommandHandler for Command {
-    type State = Arc<State>;
+    type Context = CommandContext;
     type Response = ();
     type Error = Error;
 
     async fn handle(
         self,
-        state: Self::State,
+        context: Self::Context,
         interaction: Interaction,
     ) -> Result<Self::Response, Self::Error> {
-        send_shutdown(&state).map_err(Error::Channel)?;
+        context.state.send_shutdown().map_err(Error::Channel)?;
 
-        state
+        context
+            .state
             .client
-            .interaction(state.app_id)
+            .interaction(context.state.app_id)
             .create_response(
                 interaction.id,
                 &interaction.token,

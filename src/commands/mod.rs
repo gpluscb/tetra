@@ -1,8 +1,7 @@
-use crate::State;
+use crate::context::CommandContext;
 use crate::framework::{CommandHandler, FromCommandData, FromCommandDataError};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::sync::Arc;
 use twilight_http::client::InteractionClient;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::application::command::Command;
@@ -19,7 +18,7 @@ macro_rules! commands_collection {
     (Create collection $collection_name:ident
     with error type $error_name:ident
     with visibility $vis:vis
-    with state $state:ty;
+    with context $context:ty;
     from commands: {
         $($command_name:ident
         at $command_type:path;
@@ -59,18 +58,18 @@ macro_rules! commands_collection {
         }
 
         impl CommandHandler for $collection_name {
-            type State = $state;
+            type Context = $context;
             type Response = ();
             type Error = $error_name;
 
             async fn handle(
                 self,
-                state: Self::State,
+                context: Self::Context,
                 interaction: Interaction,
             ) -> Result<Self::Response, Self::Error> {
                 match self {
                     $($collection_name::$command_name(command) => command
-                        .handle(state, interaction)
+                        .handle(context, interaction)
                         .await
                         .map_err($error_name::$command_name),
                     )*
@@ -83,7 +82,7 @@ commands_collection! {
     Create collection Commands
     with error type CommandError
     with visibility pub
-    with state Arc<State>;
+    with context CommandContext;
     from commands: {
         A at command_a::Command; with error type command_a::Error,
         B at command_b::Command; with error type command_b::Error,

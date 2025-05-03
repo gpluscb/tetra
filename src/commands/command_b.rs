@@ -1,6 +1,6 @@
 use super::CommandHandler;
-use crate::{State, TwilightError};
-use std::sync::Arc;
+use crate::TwilightError;
+use crate::context::CommandContext;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::application::interaction::Interaction;
 use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};
@@ -16,18 +16,19 @@ pub struct Command {
 pub type Error = TwilightError;
 
 impl CommandHandler for Command {
-    type State = Arc<State>;
+    type Context = CommandContext;
     type Response = ();
     type Error = Error;
 
     async fn handle(
         self,
-        state: Self::State,
+        context: Self::Context,
         interaction: Interaction,
     ) -> Result<Self::Response, Self::Error> {
-        state
+        context
+            .state
             .client
-            .interaction(state.app_id)
+            .interaction(context.state.app_id)
             .create_response(
                 interaction.id,
                 &interaction.token,

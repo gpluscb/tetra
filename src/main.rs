@@ -2,21 +2,20 @@
 #![warn(clippy::pedantic)]
 
 mod commands;
+mod context;
 mod framework;
-mod twilight_util;
 
-use self::twilight_util::gateway;
 use crate::commands::Commands;
+use crate::context::State;
 use crate::framework::ExecutableCommandService;
+use context::CommandContext;
 use std::future::Future;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror::Error;
 use tokio::signal;
 use tower::{Service, ServiceExt};
-use twilight_gateway::{
-    Config, EventTypeFlags, MessageSender, Shard, StreamExt as _, create_recommended,
-};
+use twilight_gateway::{Config, EventTypeFlags, Shard, StreamExt as _, create_recommended};
 use twilight_http::Client;
 use twilight_http::response::DeserializeBodyError;
 use twilight_model::application::interaction::Interaction;
@@ -24,14 +23,6 @@ use twilight_model::gateway::Intents;
 use twilight_model::gateway::event::Event;
 use twilight_model::id::Id;
 use twilight_model::id::marker::{ApplicationMarker, GuildMarker};
-
-#[derive(Debug)]
-pub struct State {
-    pub client: Client,
-    pub senders: Vec<MessageSender>,
-    pub app_id: Id<ApplicationMarker>,
-    pub shutdown: AtomicBool,
-}
 
 #[derive(Debug, Error)]
 pub enum TwilightError {
@@ -43,7 +34,7 @@ pub enum TwilightError {
 
 async fn shard_runner(
     router: impl Service<
-        (Arc<State>, Interaction),
+        (CommandContext, Interaction),
         Response = (),
         Error = (),
         Future = impl Future<Output = Result<(), ()>> + Send,
@@ -74,14 +65,17 @@ async fn shard_runner(
 
         let mut router = router.clone();
         let state = state.clone();
+        let context = CommandContext {
+            state: state.clone(),
+        };
         tokio::spawn(assert_fully_processed(async move {
-            router.ready().await?.call((state, interaction)).await
+            router.ready().await?.call((context, interaction)).await
         }));
     }
 }
 
 fn get_command_router() -> impl Service<
-    (Arc<State>, Interaction),
+    (CommandContext, Interaction),
     Response = (),
     Error = (),
     Future = impl Future<Output = Result<(), ()>> + Send,
@@ -95,7 +89,7 @@ fn get_command_router() -> impl Service<
 async fn ctrl_c_handler(state: &State) {
     // TODO: Log these errors
     _ = signal::ctrl_c().await;
-    _ = gateway::send_shutdown(state);
+    _ = state.send_shutdown();
 }
 
 #[tokio::main]
