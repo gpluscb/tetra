@@ -11,7 +11,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tower::{Service, ServiceExt};
 use twilight_gateway::{
-    Config, EventTypeFlags, MessageSender, Shard, StreamExt as _, create_recommended,
+    Config, EventTypeFlags, MessageSender, Shard, ShardState, StreamExt as _, create_recommended,
 };
 use twilight_http::Client;
 use twilight_http::response::DeserializeBodyError;
@@ -55,7 +55,7 @@ async fn shard_runner(
     while let Some(item) = shard.next_event(EventTypeFlags::INTERACTION_CREATE).await {
         let interaction = match item {
             Ok(Event::InteractionCreate(interaction_create)) => interaction_create.0,
-            Ok(Event::GatewayClose(_)) => {
+            Ok(Event::GatewayClose(_)) if matches!(shard.state(), ShardState::FatallyClosed) => {
                 // TODO: Some kind of timeout for shutdown
                 println!("SHUTDOWNNNNN; Gateway Closed");
                 break;
