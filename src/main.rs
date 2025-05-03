@@ -67,6 +67,7 @@ async fn shard_runner(
 
         let mut router = router.clone();
         let context_factory = context_factory.clone();
+        // TODO: Commands probably need to be abortable? Right now they'd be just cut off when the application exits
         tokio::spawn(assert_fully_processed(async move {
             router
                 .ready()
