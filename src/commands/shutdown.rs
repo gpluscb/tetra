@@ -1,7 +1,6 @@
 use crate::framework::CommandHandler;
 use crate::{State, TwilightError};
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 use thiserror::Error;
 use twilight_gateway::error::ChannelError;
 use twilight_interactions::command::{CommandModel, CreateCommand};
@@ -33,8 +32,6 @@ impl CommandHandler for Command {
         state: Self::State,
         interaction: Interaction,
     ) -> Result<Self::Response, Self::Error> {
-        state.shutdown.store(true, Ordering::Release);
-
         let close_errors: Vec<_> = state
             .senders
             .iter()

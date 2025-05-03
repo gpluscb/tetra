@@ -8,7 +8,6 @@ use crate::commands::Commands;
 use crate::framework::ExecutableCommandService;
 use std::future::Future;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror::Error;
 use tower::{Service, ServiceExt};
 use twilight_gateway::{
@@ -27,7 +26,6 @@ pub struct State {
     pub client: Client,
     pub senders: Vec<MessageSender>,
     pub app_id: Id<ApplicationMarker>,
-    pub shutdown: AtomicBool,
 }
 
 #[derive(Debug, Error)]
@@ -57,7 +55,7 @@ async fn shard_runner(
     while let Some(item) = shard.next_event(EventTypeFlags::INTERACTION_CREATE).await {
         let interaction = match item {
             Ok(Event::InteractionCreate(interaction_create)) => interaction_create.0,
-            Ok(Event::GatewayClose(_)) if state.shutdown.load(Ordering::Acquire) => {
+            Ok(Event::GatewayClose(_)) => {
                 // TODO: Some kind of timeout for shutdown
                 println!("SHUTDOWNNNNN; Gateway Closed");
                 break;
@@ -110,9 +108,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let router = get_command_router();
     let state = Arc::new(State {
         client,
-        app_id,
-        shutdown: AtomicBool::new(false),
         senders,
+        app_id,
     });
     let runners: Vec<_> = shards
         .into_iter()
