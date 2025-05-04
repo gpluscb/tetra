@@ -7,14 +7,19 @@ mod framework;
 
 use crate::commands::Commands;
 use crate::context::{ContextFactory, State};
-use crate::framework::{CommandContextFactory, ExecutableCommandService};
+use crate::framework::{
+    CommandContextFactory, CommandFromInteractionError, Error, ExecutableCommandService,
+};
 use context::CommandContext;
 use std::future::Future;
+use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror::Error;
 use tokio::signal;
 use tower::{Service, ServiceExt};
+use tracing::{Instrument, debug, error, info_span, instrument, warn};
+use twilight_gateway::error::ReceiveMessageError;
 use twilight_gateway::{Config, EventTypeFlags, Shard, StreamExt as _, create_recommended};
 use twilight_http::Client;
 use twilight_http::response::DeserializeBodyError;
@@ -32,6 +37,7 @@ pub enum TwilightError {
     Model(#[from] DeserializeBodyError),
 }
 
+#[instrument(level = "info", skip(router))]
 async fn shard_runner(
     router: impl Service<
         (ContextFactory, Interaction),
@@ -44,38 +50,61 @@ async fn shard_runner(
     context_factory: ContextFactory,
     mut shard: Shard,
 ) {
+    while let Some(event) = shard.next_event(EventTypeFlags::INTERACTION_CREATE).await {
+        if let ControlFlow::Break(()) =
+            handle_event(router.clone(), context_factory.clone(), event).await
+        {
+            break;
+        }
+    }
+}
+
+#[instrument(level = "debug", skip(router))]
+async fn handle_event(
+    mut router: impl Service<
+        (ContextFactory, Interaction),
+        Response = (),
+        Error = (),
+        Future = impl Future<Output = Result<(), ()>> + Send,
+    > + Clone
+    + Send
+    + 'static,
+    context_factory: ContextFactory,
+    event: Result<Event, ReceiveMessageError>,
+) -> ControlFlow<()> {
     fn assert_fully_processed<Fut: Future<Output = Result<(), ()>>>(it: Fut) -> Fut {
         it
     }
 
-    while let Some(item) = shard.next_event(EventTypeFlags::INTERACTION_CREATE).await {
-        let interaction = match item {
-            Ok(Event::InteractionCreate(interaction_create)) => interaction_create.0,
-            Ok(Event::GatewayClose(_))
-                if context_factory.state.shutdown.load(Ordering::Acquire) =>
-            {
-                // TODO: Some kind of timeout for shutdown
-                println!("SHUTDOWNNNNN; Gateway Closed");
-                break;
-            }
-            Err(e) => {
-                println!("AWAWAWA RECEIVE MESSAGE ERROR {e}");
-                continue;
-            }
-            _ => continue,
-        };
+    let interaction = match event {
+        Ok(Event::InteractionCreate(interaction_create)) => interaction_create.0,
+        Ok(Event::GatewayClose(close_frame))
+            if context_factory.state.shutdown.load(Ordering::Acquire) =>
+        {
+            // TODO: Some kind of timeout for shutdown
+            debug!(?close_frame, "GatewayClose after shutdown");
+            return ControlFlow::Break(());
+        }
+        Err(error) => {
+            warn!(%error, "Error receiving gateway event");
+            return ControlFlow::Continue(());
+        }
+        _ => return ControlFlow::Continue(()),
+    };
 
-        let mut router = router.clone();
-        let context_factory = context_factory.clone();
-        // TODO: Commands probably need to be abortable? Right now they'd be just cut off when the application exits
-        tokio::spawn(assert_fully_processed(async move {
+    // TODO: Commands probably need to be abortable? Right now they'd be just cut off when the application exits
+    tokio::spawn(assert_fully_processed(
+        async move {
             router
                 .ready()
                 .await?
                 .call((context_factory, interaction))
                 .await
-        }));
-    }
+        }
+        .instrument(info_span!("command service execution")),
+    ));
+
+    ControlFlow::Continue(())
 }
 
 fn get_command_router<TContextFactory>() -> impl Service<
@@ -91,19 +120,31 @@ where
 {
     let service = ExecutableCommandService::<Commands>::new();
     // UFCS because the type hint for TContextFactory is required and other constructs require nightly
-    <ExecutableCommandService<_> as ServiceExt<(TContextFactory, _)>>::map_err(service, |err| {
-        println!("AWAWAWA THERE WAS AN ERROR :( {err}");
+    <ExecutableCommandService<_> as ServiceExt<(TContextFactory, _)>>::map_err(service, |error| {
+        match &error {
+            Error::FromInteraction(CommandFromInteractionError::FromCommandData(_, _))
+            | Error::Command(_) => error!(%error),
+            Error::FromInteraction(CommandFromInteractionError::NotACommand(_, _)) => {
+                debug!(%error);
+            }
+        }
     })
 }
 
+#[instrument]
 async fn ctrl_c_handler(state: &State) {
-    // TODO: Log these errors
-    _ = signal::ctrl_c().await;
-    _ = state.send_shutdown();
+    if let Err(error) = signal::ctrl_c().await {
+        error!(%error, "Could not install ctrl-c handler, sending shutdown");
+    }
+    if let Err(error) = state.send_shutdown() {
+        error!(?error, "Sending shutdown from ctrl-c handler failed");
+    }
 }
 
 // TODO: This should probably return () after proper tracing is set up
+// TODO: Also break up this function also use envy
 #[tokio::main]
+#[instrument]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     _ = dotenv::dotenv();
     let token = std::env::var("DISCORD_TOKEN")?;
@@ -142,8 +183,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     });
 
     for runner in runners {
-        if let Err(e) = runner.await {
-            println!("AWAWAWA A RUNNER EXITED UNEXPECTEDLY :( {e}");
+        if let Err(error) = runner.await {
+            error!(%error, "Runner exited unexpectedly");
         }
     }
 

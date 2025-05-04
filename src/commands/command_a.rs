@@ -1,11 +1,12 @@
 use super::CommandHandler;
 use crate::TwilightError;
 use crate::context::CommandContext;
+use tracing::instrument;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};
 use twilight_util::builder::InteractionResponseDataBuilder;
 
-#[derive(CreateCommand, CommandModel)]
+#[derive(Debug, CreateCommand, CommandModel)]
 #[command(name = "test-command", desc = "Just a test command tbh tbh.")]
 pub struct Command;
 
@@ -16,6 +17,7 @@ impl CommandHandler for Command {
     type Response = ();
     type Error = TwilightError;
 
+    #[instrument(level = "info")]
     async fn handle(self, context: Self::Context) -> Result<Self::Response, Self::Error> {
         context
             .state

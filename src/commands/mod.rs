@@ -2,6 +2,7 @@ use crate::context::CommandContext;
 use crate::framework::{CommandHandler, FromCommandData, FromCommandDataError};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use tracing::instrument;
 use twilight_http::client::InteractionClient;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::application::command::Command;
@@ -39,12 +40,14 @@ macro_rules! commands_collection {
             }
         }
 
+        #[derive(Debug)]
         $vis enum $collection_name {
             $($command_name($command_type),
             )*
         }
 
         impl FromCommandData for $collection_name {
+            #[instrument(level = "trace")]
             fn from_command_data(data: Box<CommandData>) -> Result<Self, FromCommandDataError> {
                 match &*data.name {
                     $(<$command_type>::NAME => Ok($collection_name::$command_name(<$command_type>::from_interaction(
@@ -61,6 +64,7 @@ macro_rules! commands_collection {
             type Response = ();
             type Error = $error_name;
 
+            #[instrument(level = "debug")]
             async fn handle(
                 self,
                 context: Self::Context,
@@ -100,6 +104,7 @@ impl Commands {
         [shutdown::Command::create_command().into()]
     }
 
+    #[instrument(level = "info")]
     pub async fn update_commands(
         client: &InteractionClient<'_>,
         admin_guild_id: Id<GuildMarker>,

@@ -1,6 +1,7 @@
 use crate::framework::CommandContextFactory;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use tracing::{info, instrument};
 use twilight_gateway::MessageSender;
 use twilight_gateway::error::ChannelError;
 use twilight_http::Client;
@@ -18,9 +19,11 @@ pub struct State {
 }
 
 impl State {
+    #[instrument]
     pub fn send_shutdown(&self) -> Result<(), Vec<ChannelError>> {
         // Shutdown method should be idempotent
         if self.shutdown.swap(true, Ordering::AcqRel) {
+            info!("Attempted to send shutdown a second time");
             return Ok(());
         }
 
@@ -53,6 +56,7 @@ impl ContextFactory {
 impl CommandContextFactory for ContextFactory {
     type CommandContext = CommandContext;
 
+    #[instrument(level = "trace")]
     fn create_context(self, interaction: Interaction) -> Self::CommandContext {
         CommandContext {
             state: self.state,

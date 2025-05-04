@@ -2,12 +2,13 @@ use crate::TwilightError;
 use crate::context::CommandContext;
 use crate::framework::CommandHandler;
 use thiserror::Error;
+use tracing::instrument;
 use twilight_gateway::error::ChannelError;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};
 use twilight_util::builder::InteractionResponseDataBuilder;
 
-#[derive(CreateCommand, CommandModel)]
+#[derive(Debug, CreateCommand, CommandModel)]
 #[command(name = "shutdown", desc = "Shut down the bot.")]
 pub struct Command;
 
@@ -25,6 +26,7 @@ impl CommandHandler for Command {
     type Response = ();
     type Error = Error;
 
+    #[instrument(level = "info")]
     async fn handle(self, context: Self::Context) -> Result<Self::Response, Self::Error> {
         context.state.send_shutdown().map_err(Error::Channel)?;
 

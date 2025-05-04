@@ -5,6 +5,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use thiserror::Error;
 use tower::Service;
+use tracing::{Instrument, debug, info, instrument, trace_span, warn};
 use twilight_interactions::command::CommandModel;
 use twilight_interactions::error::ParseError;
 use twilight_model::application::interaction::application_command::CommandData;
@@ -56,7 +57,11 @@ where
     }
 
     fn call(&mut self, (command, context): (TCommand, TContext)) -> Self::Future {
-        Box::pin(command.handle(context))
+        Box::pin(
+            command
+                .handle(context)
+                .instrument(trace_span!("command handler")),
+        )
     }
 }
 
@@ -86,7 +91,9 @@ where
         &mut self,
         (context_factory, interaction): (TContextFactory, Interaction),
     ) -> Self::Future {
-        Box::pin(TCommand::run(context_factory, interaction))
+        Box::pin(
+            TCommand::run(context_factory, interaction).instrument(trace_span!("command runner")),
+        )
     }
 }
 
@@ -98,6 +105,7 @@ impl<T> FromCommandData for T
 where
     T: CommandModel,
 {
+    #[tracing::instrument]
     fn from_command_data(command_data: Box<CommandData>) -> Result<Self, FromCommandDataError> {
         Self::from_interaction((*command_data).into()).map_err(FromCommandDataError::from)
     }
@@ -136,6 +144,7 @@ where
 {
     type CommandContext = TCommandContext;
 
+    #[instrument(level = "trace", skip(self))]
     fn create_context(self, interaction: Interaction) -> Self::CommandContext {
         self(interaction)
     }
@@ -151,6 +160,7 @@ where
     type Response = TCommand::Response;
     type CommandError = <TCommand as CommandHandler>::Error;
 
+    #[tracing::instrument(level = "debug", skip(context_factory))]
     async fn run(
         context_factory: ContextFactory,
         mut interaction: Interaction,
@@ -158,6 +168,11 @@ where
         let command_data = match interaction.data.take() {
             Some(InteractionData::ApplicationCommand(command_data)) => command_data,
             data => {
+                debug!(
+                    interaction = ?&interaction,
+                    data = ?&data,
+                    "Interaction was not a command"
+                );
                 return Err(Error::FromInteraction(
                     CommandFromInteractionError::NotACommand(interaction, data),
                 ));
@@ -166,14 +181,19 @@ where
 
         let command = match Self::from_command_data(command_data) {
             Ok(command) => command,
-            Err(err) => {
+            Err(error) => {
+                info!(%error, "Creating command from command data failed");
                 return Err(Error::FromInteraction(
-                    CommandFromInteractionError::FromCommandData(interaction, err),
+                    CommandFromInteractionError::FromCommandData(interaction, error),
                 ));
             }
         };
 
         let context = context_factory.create_context(interaction);
-        command.handle(context).await.map_err(Error::Command)
+        command
+            .handle(context)
+            .instrument(trace_span!("command handler"))
+            .await
+            .map_err(Error::Command)
     }
 }

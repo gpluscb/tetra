@@ -882,6 +882,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tower",
+ "tracing",
  "twilight-gateway",
  "twilight-http",
  "twilight-interactions",
