@@ -16,7 +16,6 @@ use std::future::Future;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use thiserror::Error;
 use tokio::signal;
 use tower::{Service, ServiceExt};
 use tracing::{Instrument, debug, error, info_span, instrument, warn};
@@ -25,20 +24,11 @@ use tracing_subscriber::util::SubscriberInitExt;
 use twilight_gateway::error::ReceiveMessageError;
 use twilight_gateway::{Config, EventTypeFlags, Shard, StreamExt as _, create_recommended};
 use twilight_http::Client;
-use twilight_http::response::DeserializeBodyError;
 use twilight_model::application::interaction::Interaction;
 use twilight_model::gateway::Intents;
 use twilight_model::gateway::event::Event;
 use twilight_model::id::Id;
 use twilight_model::id::marker::{ApplicationMarker, GuildMarker};
-
-#[derive(Debug, Error)]
-pub enum TwilightError {
-    #[error("Http error: {0}")]
-    Http(#[from] twilight_http::Error),
-    #[error("Deserialize error: {0}")]
-    Model(#[from] DeserializeBodyError),
-}
 
 #[instrument(level = "info", fields(shard.id = %shard.id()), skip(router, shard))]
 async fn shard_runner(

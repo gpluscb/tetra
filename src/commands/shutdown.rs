@@ -1,4 +1,4 @@
-use crate::TwilightError;
+use crate::commands::TwilightError;
 use crate::context::CommandContext;
 use crate::framework::CommandHandler;
 use thiserror::Error;

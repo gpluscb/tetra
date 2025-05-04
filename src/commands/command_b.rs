@@ -1,5 +1,5 @@
 use super::CommandHandler;
-use crate::TwilightError;
+use crate::commands::TwilightError;
 use crate::context::CommandContext;
 use tracing::instrument;
 use twilight_interactions::command::{CommandModel, CreateCommand};

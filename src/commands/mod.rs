@@ -2,8 +2,10 @@ use crate::context::CommandContext;
 use crate::framework::{CommandHandler, FromCommandData, FromCommandDataError};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use thiserror::Error;
 use tracing::instrument;
 use twilight_http::client::InteractionClient;
+use twilight_http::response::DeserializeBodyError;
 use twilight_interactions::command::{CommandModel, CreateCommand};
 use twilight_model::application::command::Command;
 use twilight_model::application::interaction::application_command::CommandData;
@@ -13,6 +15,14 @@ use twilight_model::id::marker::GuildMarker;
 mod command_a;
 mod command_b;
 mod shutdown;
+
+#[derive(Debug, Error)]
+pub enum TwilightError {
+    #[error("Http error: {0}")]
+    Http(#[from] twilight_http::Error),
+    #[error("Deserialize error: {0}")]
+    Model(#[from] DeserializeBodyError),
+}
 
 macro_rules! commands_collection {
     (Create collection $collection_name:ident
