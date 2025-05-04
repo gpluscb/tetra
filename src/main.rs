@@ -12,6 +12,7 @@ use crate::framework::{
     CommandContextFactory, CommandFromInteractionError, Error, ExecutableCommandService,
 };
 use context::CommandContext;
+use serde::Deserialize;
 use std::future::Future;
 use std::ops::ControlFlow;
 use std::sync::Arc;
@@ -145,6 +146,13 @@ pub fn install_tracing() {
         .init();
 }
 
+#[derive(Deserialize)]
+struct EnvConfig {
+    pub discord_token: String,
+    pub application_id: Id<ApplicationMarker>,
+    pub admin_guild_id: Id<GuildMarker>,
+}
+
 // TODO: This should probably return () after proper tracing is set up
 // TODO: Also break up this function also use envy
 #[tokio::main]
@@ -153,26 +161,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     _ = dotenv::dotenv();
     install_tracing();
 
-    let token = std::env::var("DISCORD_TOKEN")?;
-    let app_id: Id<ApplicationMarker> = std::env::var("APPLICATION_ID")?.parse()?;
-    let admin_guild_id: Id<GuildMarker> = std::env::var("ADMIN_GUILD_ID")?.parse()?;
+    let config: EnvConfig = envy::from_env()
+        .inspect_err(|error| error!(%error, "Error reading config from environment"))?;
 
-    let client = Client::new(token.clone());
+    let client = Client::new(config.discord_token.clone());
 
-    let config = Config::new(token, Intents::empty());
-    let shards: Vec<_> = create_recommended(&client, config, |_, builder| builder.build())
+    let shard_config = Config::new(config.discord_token, Intents::empty());
+    let shards: Vec<_> = create_recommended(&client, shard_config, |_, builder| builder.build())
         .await?
         .collect();
     let senders: Vec<_> = shards.iter().map(Shard::sender).collect();
 
-    let interaction = client.interaction(app_id);
-    Commands::update_commands(&interaction, admin_guild_id).await?;
+    let interaction = client.interaction(config.application_id);
+    Commands::update_commands(&interaction, config.admin_guild_id).await?;
 
     let router = get_command_router();
     let state = Arc::new(State {
         client,
         senders: senders.clone(),
-        app_id,
+        app_id: config.application_id,
         shutdown: AtomicBool::new(false),
     });
     let runners: Vec<_> = shards
