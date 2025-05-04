@@ -165,15 +165,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .inspect_err(|error| error!(%error, "Error reading config from environment"))?;
 
     let client = Client::new(config.discord_token.clone());
+    let interaction = client.interaction(config.application_id);
+    Commands::update_commands(&interaction, config.admin_guild_id).await?;
 
     let shard_config = Config::new(config.discord_token, Intents::empty());
     let shards: Vec<_> = create_recommended(&client, shard_config, |_, builder| builder.build())
         .await?
         .collect();
     let senders: Vec<_> = shards.iter().map(Shard::sender).collect();
-
-    let interaction = client.interaction(config.application_id);
-    Commands::update_commands(&interaction, config.admin_guild_id).await?;
 
     let router = get_command_router();
     let state = Arc::new(State {
