@@ -4,6 +4,7 @@
 mod commands;
 mod context;
 mod framework;
+mod util;
 
 use crate::commands::Commands;
 use crate::context::{ContextFactory, State};
@@ -39,7 +40,7 @@ pub enum TwilightError {
     Model(#[from] DeserializeBodyError),
 }
 
-#[instrument(level = "info", skip(router))]
+#[instrument(level = "info", fields(shard.id = %shard.id()), skip(router, shard))]
 async fn shard_runner(
     router: impl Service<
         (ContextFactory, Interaction),

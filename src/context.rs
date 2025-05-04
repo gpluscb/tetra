@@ -1,4 +1,6 @@
 use crate::framework::CommandContextFactory;
+use crate::util::OmitDebug;
+use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::{info, instrument};
@@ -10,12 +12,22 @@ use twilight_model::gateway::CloseFrame;
 use twilight_model::id::Id;
 use twilight_model::id::marker::ApplicationMarker;
 
-#[derive(Debug)]
 pub struct State {
     pub client: Client,
     pub senders: Vec<MessageSender>,
     pub app_id: Id<ApplicationMarker>,
     pub shutdown: AtomicBool,
+}
+
+impl Debug for State {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("State")
+            .field("client", &OmitDebug)
+            .field("senders", &OmitDebug)
+            .field("app_id", &self.app_id)
+            .field("shutdown", &self.shutdown)
+            .finish()
+    }
 }
 
 impl State {

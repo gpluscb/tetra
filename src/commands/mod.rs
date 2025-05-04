@@ -104,7 +104,7 @@ impl Commands {
         [shutdown::Command::create_command().into()]
     }
 
-    #[instrument(level = "info")]
+    #[instrument(level = "info", skip(client))]
     pub async fn update_commands(
         client: &InteractionClient<'_>,
         admin_guild_id: Id<GuildMarker>,
