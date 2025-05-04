@@ -102,6 +102,7 @@ async fn ctrl_c_handler(state: &State) {
     _ = state.send_shutdown();
 }
 
+// TODO: This should probably return () after proper tracing is set up
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     _ = dotenv::dotenv();
@@ -141,8 +142,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     });
 
     for runner in runners {
-        // TODO: Allow other runners to do their thing even if singular runner failed
-        runner.await?;
+        if let Err(e) = runner.await {
+            println!("AWAWAWA A RUNNER EXITED UNEXPECTEDLY :( {e}");
+        }
     }
 
     Ok(())
