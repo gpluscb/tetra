@@ -19,6 +19,8 @@ use thiserror::Error;
 use tokio::signal;
 use tower::{Service, ServiceExt};
 use tracing::{Instrument, debug, error, info_span, instrument, warn};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use twilight_gateway::error::ReceiveMessageError;
 use twilight_gateway::{Config, EventTypeFlags, Shard, StreamExt as _, create_recommended};
 use twilight_http::Client;
@@ -141,12 +143,25 @@ async fn ctrl_c_handler(state: &State) {
     }
 }
 
+pub fn install_tracing() {
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                "tetra=trace,twilight_gateway=debug,twilight_http=debug,twilight_model=debug,twilight_util=debug".into()
+            }),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+}
+
 // TODO: This should probably return () after proper tracing is set up
 // TODO: Also break up this function also use envy
 #[tokio::main]
 #[instrument]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     _ = dotenv::dotenv();
+    install_tracing();
+
     let token = std::env::var("DISCORD_TOKEN")?;
     let app_id: Id<ApplicationMarker> = std::env::var("APPLICATION_ID")?.parse()?;
     let admin_guild_id: Id<GuildMarker> = std::env::var("ADMIN_GUILD_ID")?.parse()?;
