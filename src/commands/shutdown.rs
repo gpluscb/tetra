@@ -5,7 +5,6 @@ use thiserror::Error;
 use tracing::instrument;
 use twilight_gateway::error::ChannelError;
 use twilight_interactions::command::{CommandModel, CreateCommand};
-use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};
 use twilight_util::builder::InteractionResponseDataBuilder;
 
 #[derive(Debug, CreateCommand, CommandModel)]
@@ -31,20 +30,10 @@ impl CommandHandler for Command {
         context.state.send_shutdown().map_err(Error::Channel)?;
 
         context
-            .state
-            .client
-            .interaction(context.state.app_id)
-            .create_response(
-                context.interaction.id,
-                &context.interaction.token,
-                &InteractionResponse {
-                    kind: InteractionResponseType::ChannelMessageWithSource,
-                    data: Some(
-                        InteractionResponseDataBuilder::new()
-                            .content("Shutdown initiated.")
-                            .build(),
-                    ),
-                },
+            .reply(
+                InteractionResponseDataBuilder::new()
+                    .content("Shutdown initiated.")
+                    .build(),
             )
             .await
             .map_err(TwilightError::from)?;

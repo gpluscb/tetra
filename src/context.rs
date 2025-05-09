@@ -6,9 +6,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::{info, instrument};
 use twilight_gateway::MessageSender;
 use twilight_gateway::error::ChannelError;
-use twilight_http::Client;
+use twilight_http::client::InteractionClient;
+use twilight_http::response::marker::EmptyBody;
+use twilight_http::{Client, Response};
 use twilight_model::application::interaction::Interaction;
 use twilight_model::gateway::CloseFrame;
+use twilight_model::http::interaction::{
+    InteractionResponse, InteractionResponseData, InteractionResponseType,
+};
 use twilight_model::id::Id;
 use twilight_model::id::marker::ApplicationMarker;
 
@@ -31,6 +36,10 @@ impl Debug for State {
 }
 
 impl State {
+    pub fn interaction_client(&self) -> InteractionClient<'_> {
+        self.client.interaction(self.app_id)
+    }
+
     #[instrument]
     pub fn send_shutdown(&self) -> Result<(), Vec<ChannelError>> {
         // Shutdown method should be idempotent
@@ -81,4 +90,23 @@ impl CommandContextFactory for ContextFactory {
 pub struct CommandContext {
     pub state: Arc<State>,
     pub interaction: Interaction,
+}
+
+impl CommandContext {
+    pub async fn reply(
+        &self,
+        response: InteractionResponseData,
+    ) -> Result<Response<EmptyBody>, twilight_http::Error> {
+        self.state
+            .interaction_client()
+            .create_response(
+                self.interaction.id,
+                &self.interaction.token,
+                &InteractionResponse {
+                    kind: InteractionResponseType::ChannelMessageWithSource,
+                    data: Some(response),
+                },
+            )
+            .await
+    }
 }
