@@ -6,7 +6,7 @@ use thiserror::Error;
 use tracing::instrument;
 use twilight_http::client::InteractionClient;
 use twilight_http::response::DeserializeBodyError;
-use twilight_interactions::command::{CommandModel, CreateCommand};
+use twilight_interactions::command::CreateCommand;
 use twilight_model::application::command::Command;
 use twilight_model::application::interaction::application_command::CommandData;
 use twilight_model::id::Id;
@@ -60,9 +60,7 @@ macro_rules! commands_collection {
             #[instrument(level = "trace")]
             fn from_command_data(data: Box<CommandData>) -> Result<Self, FromCommandDataError> {
                 match &*data.name {
-                    $(<$command_type>::NAME => Ok($collection_name::$command_name(<$command_type>::from_interaction(
-                        (*data).into(),
-                    )?)),
+                    $(<$command_type>::NAME => Ok($collection_name::$command_name(<$command_type>::from_command_data(data)?)),
                     )*
                     _ => Err(FromCommandDataError::UnknownCommand(data)),
                 }
