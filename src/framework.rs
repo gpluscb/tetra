@@ -5,11 +5,11 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use thiserror::Error;
 use tower::Service;
-use tracing::{Instrument, debug, info, instrument, trace_span, warn};
+use tracing::{Instrument, debug, error, info, instrument, trace_span, warn};
 use twilight_interactions::command::CommandModel;
 use twilight_interactions::error::ParseError;
 use twilight_model::application::interaction::application_command::CommandData;
-use twilight_model::application::interaction::{Interaction, InteractionData};
+use twilight_model::application::interaction::{Interaction, InteractionData, InteractionType};
 
 #[derive(Clone, PartialEq, Debug, Error)]
 pub enum Error<CommandError> {
@@ -22,7 +22,9 @@ pub enum Error<CommandError> {
 #[derive(Clone, PartialEq, Debug, Error)]
 pub enum CommandFromInteractionError {
     #[error("Interaction was not a command interaction")]
-    NotACommand(Interaction, Option<InteractionData>),
+    NotACommand(Interaction),
+    #[error("Interaction kind was ApplicationCommand, but no CommandData present")]
+    NoCommandData(Interaction, Option<InteractionData>),
     #[error("Getting command from interaction failed: {1}")]
     FromCommandData(Interaction, FromCommandDataError),
 }
@@ -165,16 +167,26 @@ where
         context_factory: ContextFactory,
         mut interaction: Interaction,
     ) -> Result<Self::Response, Error<Self::CommandError>> {
+        if !matches!(interaction.kind, InteractionType::ApplicationCommand) {
+            debug!(
+                interaction = ?&interaction,
+                "Interaction was not a command"
+            );
+            return Err(Error::FromInteraction(
+                CommandFromInteractionError::NotACommand(interaction),
+            ));
+        }
+
         let command_data = match interaction.data.take() {
             Some(InteractionData::ApplicationCommand(command_data)) => command_data,
             data => {
-                debug!(
+                error!(
                     interaction = ?&interaction,
                     data = ?&data,
                     "Interaction was not a command"
                 );
                 return Err(Error::FromInteraction(
-                    CommandFromInteractionError::NotACommand(interaction, data),
+                    CommandFromInteractionError::NoCommandData(interaction, data),
                 ));
             }
         };

@@ -116,9 +116,12 @@ where
     // UFCS because the type hint for TContextFactory is required and other constructs require nightly
     <ExecutableCommandService<_> as ServiceExt<(TContextFactory, _)>>::map_err(service, |error| {
         match &error {
-            Error::FromInteraction(CommandFromInteractionError::FromCommandData(_, _))
+            Error::FromInteraction(
+                CommandFromInteractionError::FromCommandData(_, _)
+                | CommandFromInteractionError::NoCommandData(_, _),
+            )
             | Error::Command(_) => error!(%error),
-            Error::FromInteraction(CommandFromInteractionError::NotACommand(_, _)) => {
+            Error::FromInteraction(CommandFromInteractionError::NotACommand(_)) => {
                 debug!(%error);
             }
         }
