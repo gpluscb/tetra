@@ -44,8 +44,9 @@ macro_rules! commands_collection {
         impl Display for $error_name {
             fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
                 match self {
-                    $($error_name::$command_name(inner) => write!(f, "Command {} had error: {inner}", stringify!($command_name)),
-                    )*
+                    $($error_name::$command_name(inner) => {
+                        write!(f, "Command {} had error: {inner}", stringify!($command_name))
+                    })*
                 }
             }
         }
@@ -60,8 +61,12 @@ macro_rules! commands_collection {
             #[instrument(level = "trace")]
             fn from_command_data(data: Box<CommandData>) -> Result<Self, FromCommandDataError> {
                 match &*data.name {
-                    $(<$command_type>::NAME => Ok($collection_name::$command_name(<$command_type>::from_command_data(data)?)),
-                    )*
+                    $(<$command_type>::NAME => {
+                        Ok(
+                            $collection_name
+                                ::$command_name(<$command_type>::from_command_data(data)?)
+                        )
+                    })*
                     _ => Err(FromCommandDataError::UnknownCommand(data)),
                 }
             }
