@@ -139,11 +139,11 @@ async fn ctrl_c_handler(state: &State) {
 }
 
 pub fn install_tracing() {
+    let default_filter = "tetra=trace,twilight_gateway=debug,twilight_http=debug,twilight_model=debug,twilight_util=debug";
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                "tetra=trace,twilight_gateway=debug,twilight_http=debug,twilight_model=debug,twilight_util=debug".into()
-            }),
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| default_filter.into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
