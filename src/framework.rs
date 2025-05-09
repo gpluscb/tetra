@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use thiserror::Error;
 use tower::Service;
-use tracing::{Instrument, debug, error, info, instrument, trace_span, warn};
+use tracing::{Instrument, instrument, trace_span};
 use twilight_interactions::command::CommandModel;
 use twilight_interactions::error::ParseError;
 use twilight_model::application::interaction::application_command::CommandData;
@@ -168,10 +168,6 @@ where
         mut interaction: Interaction,
     ) -> Result<Self::Response, Error<Self::CommandError>> {
         if !matches!(interaction.kind, InteractionType::ApplicationCommand) {
-            debug!(
-                interaction = ?&interaction,
-                "Interaction was not a command"
-            );
             return Err(Error::FromInteraction(
                 CommandFromInteractionError::NotACommand(interaction),
             ));
@@ -180,11 +176,6 @@ where
         let command_data = match interaction.data.take() {
             Some(InteractionData::ApplicationCommand(command_data)) => command_data,
             data => {
-                error!(
-                    interaction = ?&interaction,
-                    data = ?&data,
-                    "Interaction was not a command"
-                );
                 return Err(Error::FromInteraction(
                     CommandFromInteractionError::NoCommandData(interaction, data),
                 ));
@@ -194,7 +185,6 @@ where
         let command = match Self::from_command_data(command_data) {
             Ok(command) => command,
             Err(error) => {
-                info!(%error, "Creating command from command data failed");
                 return Err(Error::FromInteraction(
                     CommandFromInteractionError::FromCommandData(interaction, error),
                 ));
