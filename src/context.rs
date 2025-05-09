@@ -44,7 +44,7 @@ impl State {
     pub fn send_shutdown(&self) -> Result<(), Vec<ChannelError>> {
         // Shutdown method should be idempotent
         if self.shutdown.swap(true, Ordering::AcqRel) {
-            info!("Attempted to send shutdown a second time");
+            info!("Attempting to send shutdown multiple times");
             return Ok(());
         }
 
